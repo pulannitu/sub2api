@@ -41,6 +41,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # 每个 main 提交对应一个不可变镜像标签，便于追踪和回滚。
+      # 程序版本使用仓库 VERSION 文件，避免提交哈希被更新检查误判为旧版本。
       - name: Build and push production image
         uses: docker/build-push-action@v6
         with:
@@ -49,7 +50,6 @@ jobs:
           push: true
           tags: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
           build-args: |
-            VERSION=sha-${{ github.sha }}
             COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
