@@ -385,7 +385,9 @@ func TestOllamaProbeCallback_DuplicateNoDoubleUpdate(t *testing.T) {
 	require.True(t, rec.until.Equal(probeReset))
 }
 
+// TestOllamaProbeCallback_StaleLongDoesNotOverrideNewShort 使用 t 验证旧回调不会覆盖新冷却时间，无返回值。
 func TestOllamaProbeCallback_StaleLongDoesNotOverrideNewShort(t *testing.T) {
+	// 初始化账号与可控依赖，记录首次限流产生的回调。
 	acct := ollama429Account(403, PlatformOpenAI)
 	repo := newOllama429Repo(acct)
 	scheduler := newOllama429SchedulerStub(true)
@@ -395,10 +397,14 @@ func TestOllamaProbeCallback_StaleLongDoesNotOverrideNewShort(t *testing.T) {
 	require.Equal(t, 1, scheduler.count())
 
 	// An admin / newer policy re-arms the account to a fresh SHORT cooldown.
-	newShort := time.Now().Add(5 * time.Second)
+	// 从已记录的时间明确推进，避免低精度系统时钟让两次取时相同，未能构造新冷却状态。
+	previousReset := repo.currentReset(acct.ID)
+	require.NotNil(t, previousReset)
+	newShort := previousReset.Add(time.Second)
 	repo.mutate(acct.ID, func(a *Account) { a.RateLimitResetAt = ollama429TimePtr(newShort) })
 
 	// The old async result reports a long 7d reset; it must not override.
+	// 触发旧回调并检查数据库与调度通知，确保新冷却状态不被覆盖。
 	oldLong := time.Now().Add(7 * 24 * time.Hour)
 	scheduler.fire(acct.ID, oldLong)
 
